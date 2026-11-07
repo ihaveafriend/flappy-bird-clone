@@ -40,7 +40,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: rgba(0,0,0,0.4);
+    background: rgba(0,0,0,0.45);
     color: white;
     padding: 6px 12px;
     border-radius: 6px;
@@ -70,8 +70,8 @@
     background: white;
     padding: 24px;
     border-radius: 12px;
-    max-width: 400px;
-    width: 90%;
+    max-width: 420px;
+    width: 92%;
     text-align: center;
   }
   .modalContent h2 { margin-bottom: 16px; color: #333; }
@@ -112,6 +112,17 @@
     color: #666;
     margin-top: 12px;
   }
+  #devFooter {
+    margin-top: 12px;
+    font-size: 13px;
+    color: #333;
+  }
+  #devFooter a {
+    color: #1da1f2;
+    text-decoration: none;
+    font-weight: bold;
+  }
+  #devFooter a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -130,17 +141,22 @@
   </div>
 </div>
 
+<div id="devFooter">
+  开发者：<a href="https://x.com/ihaveafriend0?s=11" target="_blank" rel="noopener">@ihaveafriend0</a> on X
+</div>
+
 <!-- Login Modal -->
 <div id="loginModal">
   <div class="modalContent">
     <h2>选择登录方式</h2>
-    <p style="margin-bottom:12px;font-size:13px;color:#555;">推荐使用开源库 <strong>JustAuth</strong> (GitHub: justauth/JustAuth) 实现真实 OAuth，支持微信、抖音、Google、X 等数十个平台。</p>
+    <p style="margin-bottom:12px;font-size:13px;color:#555;">真实登录请使用开源库 <strong>JustAuth</strong> (GitHub: justauth/JustAuth) 配合后端实现 OAuth。</p>
     <button class="loginBtn wechat" data-provider="微信">微信登录</button>
     <button class="loginBtn douyin" data-provider="抖音">抖音登录</button>
     <button class="loginBtn google" data-provider="Google">Google 登录</button>
     <button class="loginBtn x" data-provider="X">X (Twitter) 登录</button>
+    <button id="logoutBtn" style="margin-top:8px;background:#e74c3c;display:none;">退出登录</button>
     <button style="margin-top:12px;background:#ccc;" onclick="closeModal('loginModal')">关闭</button>
-    <div class="notice">当前为演示模式（本地模拟）。真实项目请接入 JustAuth 后端。</div>
+    <div class="notice">当前为前端演示模式。接入真实登录需要后端 + 各平台 App Key。</div>
   </div>
 </div>
 
@@ -184,36 +200,41 @@ let score = 0;
 let bestScore = parseInt(localStorage.getItem('flappyBest') || '0');
 let currentUser = JSON.parse(localStorage.getItem('flappyUser') || 'null');
 
-// Bird
+// Bird with animation frames
 const bird = {
   x: 60,
   y: 200,
-  w: 34,
-  h: 24,
+  w: 36,
+  h: 26,
   velocity: 0,
-  gravity: 0.5,
-  flap: -8,
-  rotation: 0
+  gravity: 0.48,
+  flap: -8.2,
+  rotation: 0,
+  wingFrame: 0,
+  wingTimer: 0
 };
 
 // Pipes
 let pipes = [];
 const pipeWidth = 52;
-const gap = 120;
+const gap = 115;
 let pipeTimer = 0;
 
 // Ground
 let groundX = 0;
 
-// UI elements
+// UI
 const userInfoEl = document.getElementById('userInfo');
 const scoreDisplay = document.getElementById('scoreDisplay');
+const logoutBtn = document.getElementById('logoutBtn');
 
 function updateUserUI() {
   if (currentUser) {
     userInfoEl.textContent = `${currentUser.provider}: ${currentUser.name}`;
+    logoutBtn.style.display = 'block';
   } else {
     userInfoEl.textContent = '未登录';
+    logoutBtn.style.display = 'none';
   }
 }
 updateUserUI();
@@ -226,6 +247,7 @@ function flap() {
     pipes = [];
     bird.y = 200;
     bird.velocity = 0;
+    bird.wingFrame = 0;
   }
   if (state === 'playing') {
     bird.velocity = bird.flap;
@@ -244,7 +266,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Leaderboard helpers
+// Leaderboard
 function getLeaderboard(type) {
   const all = JSON.parse(localStorage.getItem('flappyLeaderboard') || '[]');
   if (type === 'today') {
@@ -264,7 +286,6 @@ function saveScore(finalScore) {
     date: new Date().toDateString(),
     time: Date.now()
   });
-  // Keep only recent 200
   if (all.length > 200) all.splice(0, all.length - 200);
   localStorage.setItem('flappyLeaderboard', JSON.stringify(all));
   if (finalScore > bestScore) {
@@ -277,72 +298,90 @@ function saveScore(finalScore) {
 function drawBackground() {
   ctx.fillStyle = '#70c5ce';
   ctx.fillRect(0, 0, W, H);
-  // Simple clouds
-  ctx.fillStyle = 'rgba(255,255,255,0.6)';
-  ctx.beginPath(); ctx.arc(80, 60, 20, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(100, 60, 25, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(200, 40, 18, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.beginPath(); ctx.arc(70, 50, 18, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(92, 50, 22, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(180, 35, 16, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(250, 70, 20, 0, Math.PI*2); ctx.fill();
 }
 
 function drawBird() {
+  // Wing animation
+  bird.wingTimer++;
+  if (bird.wingTimer > 6) {
+    bird.wingTimer = 0;
+    bird.wingFrame = (bird.wingFrame + 1) % 3;
+  }
+
   ctx.save();
   ctx.translate(bird.x + bird.w/2, bird.y + bird.h/2);
   ctx.rotate(bird.rotation);
+
   // Body
   ctx.fillStyle = '#f7d32e';
   ctx.beginPath();
-  ctx.ellipse(0, 0, bird.w/2, bird.h/2, 0, 0, Math.PI*2);
+  ctx.ellipse(0, 0, bird.w/2 - 2, bird.h/2, 0, 0, Math.PI*2);
   ctx.fill();
+
+  // Wing (flapping)
+  const wingOffsets = [-6, 0, 6];
+  const wingY = wingOffsets[bird.wingFrame];
+  ctx.fillStyle = '#f1c40f';
+  ctx.beginPath();
+  ctx.ellipse(-6, wingY, 10, 6, -0.4, 0, Math.PI*2);
+  ctx.fill();
+
   // Eye
   ctx.fillStyle = 'white';
-  ctx.beginPath(); ctx.arc(6, -4, 5, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = 'black';
-  ctx.beginPath(); ctx.arc(8, -4, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(7, -5, 5.5, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.arc(9, -5, 2.8, 0, Math.PI*2); ctx.fill();
+
   // Beak
   ctx.fillStyle = '#e74c3c';
   ctx.beginPath();
   ctx.moveTo(14, 0);
-  ctx.lineTo(22, -3);
-  ctx.lineTo(22, 3);
+  ctx.lineTo(24, -4);
+  ctx.lineTo(24, 4);
   ctx.closePath();
   ctx.fill();
-  // Wing
-  ctx.fillStyle = '#f1c40f';
-  ctx.beginPath();
-  ctx.ellipse(-4, 2, 8, 5, Math.sin(Date.now()/100)*0.5, 0, Math.PI*2);
-  ctx.fill();
+
   ctx.restore();
 }
 
 function drawPipes() {
   ctx.fillStyle = '#74c044';
-  ctx.strokeStyle = '#543847';
+  ctx.strokeStyle = '#3d7a2a';
   ctx.lineWidth = 2;
   pipes.forEach(p => {
-    // Top pipe
     ctx.fillRect(p.x, 0, pipeWidth, p.topHeight);
     ctx.strokeRect(p.x, 0, pipeWidth, p.topHeight);
-    // Bottom pipe
+    // Cap
+    ctx.fillRect(p.x - 4, p.topHeight - 18, pipeWidth + 8, 18);
+    ctx.strokeRect(p.x - 4, p.topHeight - 18, pipeWidth + 8, 18);
+
     const bottomY = p.topHeight + gap;
     ctx.fillRect(p.x, bottomY, pipeWidth, H - bottomY - 40);
     ctx.strokeRect(p.x, bottomY, pipeWidth, H - bottomY - 40);
+    ctx.fillRect(p.x - 4, bottomY, pipeWidth + 8, 18);
+    ctx.strokeRect(p.x - 4, bottomY, pipeWidth + 8, 18);
   });
 }
 
 function drawGround() {
   ctx.fillStyle = '#ded895';
   ctx.fillRect(0, H - 40, W, 40);
-  ctx.fillStyle = '#d2b48c';
-  for (let i = 0; i < 10; i++) {
-    ctx.fillRect(groundX + i * 32, H - 20, 28, 8);
+  ctx.fillStyle = '#c9a66b';
+  for (let i = -1; i < 12; i++) {
+    ctx.fillRect(groundX + i * 32, H - 18, 26, 10);
   }
 }
 
 function drawUI() {
   ctx.fillStyle = 'white';
-  ctx.strokeStyle = 'black';
-  ctx.lineWidth = 2;
-  ctx.font = 'bold 28px Arial';
+  ctx.strokeStyle = '#222';
+  ctx.lineWidth = 3;
+  ctx.font = 'bold 26px Arial';
   ctx.textAlign = 'center';
   if (state === 'start') {
     ctx.strokeText('点击 / 空格开始', W/2, H/2 - 20);
@@ -351,7 +390,7 @@ function drawUI() {
     ctx.strokeText(`最高分: ${bestScore}`, W/2, H/2 + 20);
     ctx.fillText(`最高分: ${bestScore}`, W/2, H/2 + 20);
   } else if (state === 'gameover') {
-    ctx.font = 'bold 32px Arial';
+    ctx.font = 'bold 30px Arial';
     ctx.strokeText('游戏结束', W/2, H/2 - 40);
     ctx.fillText('游戏结束', W/2, H/2 - 40);
     ctx.font = '22px Arial';
@@ -367,43 +406,38 @@ function drawUI() {
 function update() {
   if (state !== 'playing') return;
 
-  // Bird physics
   bird.velocity += bird.gravity;
   bird.y += bird.velocity;
-  bird.rotation = Math.min(Math.max(bird.velocity * 3, -30), 90) * Math.PI / 180;
+  bird.rotation = Math.min(Math.max(bird.velocity * 3.2, -28), 85) * Math.PI / 180;
 
-  // Ground collision
-  if (bird.y + bird.h > H - 40 || bird.y < 0) {
+  if (bird.y + bird.h > H - 40 || bird.y < -10) {
     gameOver();
     return;
   }
 
-  // Pipes
   pipeTimer++;
-  if (pipeTimer > 90) {
+  if (pipeTimer > 85) {
     pipeTimer = 0;
-    const topHeight = 50 + Math.random() * (H - gap - 150);
+    const topHeight = 60 + Math.random() * (H - gap - 160);
     pipes.push({ x: W, topHeight });
   }
 
   pipes.forEach((p, i) => {
-    p.x -= 2;
-    // Collision
-    if (bird.x + bird.w > p.x && bird.x < p.x + pipeWidth) {
-      if (bird.y < p.topHeight || bird.y + bird.h > p.topHeight + gap) {
+    p.x -= 2.2;
+    if (bird.x + bird.w - 6 > p.x && bird.x + 6 < p.x + pipeWidth) {
+      if (bird.y + 4 < p.topHeight || bird.y + bird.h - 4 > p.topHeight + gap) {
         gameOver();
       }
     }
-    // Score
     if (!p.scored && p.x + pipeWidth < bird.x) {
       p.scored = true;
       score++;
     }
-    if (p.x + pipeWidth < 0) pipes.splice(i, 1);
+    if (p.x + pipeWidth < -10) pipes.splice(i, 1);
   });
 
-  groundX -= 2;
-  if (groundX <= -32) groundX = 0;
+  groundX -= 2.2;
+  if (groundX <= -32) groundX += 32;
 }
 
 function gameOver() {
@@ -457,6 +491,13 @@ document.querySelectorAll('.loginBtn').forEach(btn => {
   };
 });
 
+logoutBtn.onclick = () => {
+  currentUser = null;
+  localStorage.removeItem('flappyUser');
+  updateUserUI();
+  closeModal('loginModal');
+};
+
 document.getElementById('showAllTime').onclick = () => showLeaderboard('all');
 document.getElementById('showToday').onclick = () => showLeaderboard('today');
 
@@ -475,7 +516,7 @@ function showLeaderboard(type) {
   document.getElementById('leaderboardContent').innerHTML = html;
 }
 
-// Share functions
+// Share
 document.getElementById('shareNative').onclick = async () => {
   const text = document.getElementById('shareScoreText').textContent;
   if (navigator.share) {
