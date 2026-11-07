@@ -478,18 +478,33 @@ document.getElementById('shareBtn').onclick = () => {
   openModal('shareModal');
 };
 
+// 配置你的后端地址（部署 JustAuth 后填入）
+const BACKEND_BASE = localStorage.getItem('flappyBackend') || '';
+
 document.querySelectorAll('.loginBtn').forEach(btn => {
   btn.onclick = () => {
     const provider = btn.dataset.provider;
-    const name = prompt(`请输入你的${provider}昵称（演示）:`, '玩家' + Math.floor(Math.random()*1000));
-    if (name) {
-      currentUser = { provider, name };
-      localStorage.setItem('flappyUser', JSON.stringify(currentUser));
-      updateUserUI();
-      closeModal('loginModal');
+    const typeMap = { '微信': 'WECHAT_OPEN', '抖音': 'DOUYIN', 'Google': 'GOOGLE', 'X': 'TWITTER' };
+    const type = typeMap[provider] || provider;
+
+    if (BACKEND_BASE) {
+      // 真实登录：跳转到后端 OAuth
+      window.location.href = BACKEND_BASE.replace(/\/$/, '') + '/oauth/login/' + type;
+    } else {
+      // 演示模式
+      const name = prompt(`请输入你的${provider}昵称（演示模式）:`, '玩家' + Math.floor(Math.random()*1000));
+      if (name) {
+        currentUser = { provider, name };
+        localStorage.setItem('flappyUser', JSON.stringify(currentUser));
+        updateUserUI();
+        closeModal('loginModal');
+      }
     }
   };
 });
+
+// 允许在控制台设置后端地址，例如：
+// localStorage.setItem('flappyBackend', 'https://your-domain.com');
 
 logoutBtn.onclick = () => {
   currentUser = null;
