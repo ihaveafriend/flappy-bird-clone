@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Flappy Bird 复刻</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #70c5ce;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    padding: 10px;
+  }
+  #gameContainer {
+    position: relative;
+    background: #70c5ce;
+    border: 4px solid #543847;
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  }
+  canvas {
+    display: block;
+    background: #70c5ce;
+  }
+  #uiOverlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 10px;
+  }
+  #topBar, #bottomBar {
+    pointer-events: auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0,0,0,0.4);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+  }
+  #userInfo { font-weight: bold; }
+  button, .btn {
+    background: #f7c948;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+  }
+  button:hover { background: #ffd966; }
+  #loginModal, #leaderboardModal, #shareModal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .modalContent {
+    background: white;
+    padding: 24px;
+    border-radius: 12px;
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+  }
+  .modalContent h2 { margin-bottom: 16px; color: #333; }
+  .loginBtn {
+    display: block;
+    width: 100%;
+    margin: 8px 0;
+    padding: 12px;
+    border-radius: 8px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    border: none;
+    font-size: 16px;
+  }
+  .wechat { background: #07c160; }
+  .douyin { background: #000; }
+  .google { background: #4285f4; }
+  .x { background: #000; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+  }
+  th, td { padding: 8px; border-bottom: 1px solid #ddd; text-align: left; }
+  th { background: #f0f0f0; }
+  #shareButtons a, #shareButtons button {
+    display: inline-block;
+    margin: 6px;
+    padding: 10px 16px;
+    background: #1da1f2;
+    color: white;
+    text-decoration: none;
+    border-radius: 6px;
+  }
+  .notice {
+    font-size: 12px;
+    color: #666;
+    margin-top: 12px;
+  }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <canvas id="gameCanvas" width="320" height="480"></canvas>
+  <div id="uiOverlay">
+    <div id="topBar">
+      <span id="userInfo">未登录</span>
+      <span id="scoreDisplay">分数: 0</span>
+    </div>
+    <div id="bottomBar">
+      <button id="loginBtn">登录</button>
+      <button id="leaderboardBtn">排行榜</button>
+      <button id="shareBtn">分享</button>
+    </div>
+  </div>
+</div>
+
+<!-- Login Modal -->
+<div id="loginModal">
+  <div class="modalContent">
+    <h2>选择登录方式</h2>
+    <p style="margin-bottom:12px;font-size:13px;color:#555;">推荐使用开源库 <strong>JustAuth</strong> (GitHub: justauth/JustAuth) 实现真实 OAuth，支持微信、抖音、Google、X 等数十个平台。</p>
+    <button class="loginBtn wechat" data-provider="微信">微信登录</button>
+    <button class="loginBtn douyin" data-provider="抖音">抖音登录</button>
+    <button class="loginBtn google" data-provider="Google">Google 登录</button>
+    <button class="loginBtn x" data-provider="X">X (Twitter) 登录</button>
+    <button style="margin-top:12px;background:#ccc;" onclick="closeModal('loginModal')">关闭</button>
+    <div class="notice">当前为演示模式（本地模拟）。真实项目请接入 JustAuth 后端。</div>
+  </div>
+</div>
+
+<!-- Leaderboard Modal -->
+<div id="leaderboardModal">
+  <div class="modalContent">
+    <h2>排行榜</h2>
+    <div style="display:flex;gap:8px;margin-bottom:10px;justify-content:center;">
+      <button id="showAllTime">历史总榜</button>
+      <button id="showToday">今日榜</button>
+    </div>
+    <div id="leaderboardContent"></div>
+    <button style="margin-top:12px;background:#ccc;" onclick="closeModal('leaderboardModal')">关闭</button>
+  </div>
+</div>
+
+<!-- Share Modal -->
+<div id="shareModal">
+  <div class="modalContent">
+    <h2>分享成绩</h2>
+    <p id="shareScoreText">我在 Flappy Bird 复刻中得了 0 分！</p>
+    <div id="shareButtons">
+      <a id="shareX" target="_blank">分享到 X</a>
+      <button id="shareNative">系统分享</button>
+      <button id="copyLink">复制链接</button>
+    </div>
+    <p class="notice">微信 / 抖音 建议使用系统分享或复制链接后在 App 内分享。</p>
+    <button style="margin-top:12px;background:#ccc;" onclick="closeModal('shareModal')">关闭</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const W = canvas.width;
+const H = canvas.height;
+
+// Game state
+let state = 'start'; // start, playing, gameover
+let score = 0;
+let bestScore = parseInt(localStorage.getItem('flappyBest') || '0');
+let currentUser = JSON.parse(localStorage.getItem('flappyUser') || 'null');
+
+// Bird
+const bird = {
+  x: 60,
+  y: 200,
+  w: 34,
+  h: 24,
+  velocity: 0,
+  gravity: 0.5,
+  flap: -8,
+  rotation: 0
+};
+
+// Pipes
+let pipes = [];
+const pipeWidth = 52;
+const gap = 120;
+let pipeTimer = 0;
+
+// Ground
+let groundX = 0;
+
+// UI elements
+const userInfoEl = document.getElementById('userInfo');
+const scoreDisplay = document.getElementById('scoreDisplay');
+
+function updateUserUI() {
+  if (currentUser) {
+    userInfoEl.textContent = `${currentUser.provider}: ${currentUser.name}`;
+  } else {
+    userInfoEl.textContent = '未登录';
+  }
+}
+updateUserUI();
+
+// Input
+function flap() {
+  if (state === 'start') {
+    state = 'playing';
+    score = 0;
+    pipes = [];
+    bird.y = 200;
+    bird.velocity = 0;
+  }
+  if (state === 'playing') {
+    bird.velocity = bird.flap;
+  }
+  if (state === 'gameover') {
+    state = 'start';
+  }
+}
+
+canvas.addEventListener('click', flap);
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); flap(); }, { passive: false });
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' || e.code === 'ArrowUp') {
+    e.preventDefault();
+    flap();
+  }
+});
+
+// Leaderboard helpers
+function getLeaderboard(type) {
+  const all = JSON.parse(localStorage.getItem('flappyLeaderboard') || '[]');
+  if (type === 'today') {
+    const today = new Date().toDateString();
+    return all.filter(s => s.date === today).sort((a, b) => b.score - a.score).slice(0, 10);
+  }
+  return all.sort((a, b) => b.score - a.score).slice(0, 10);
+}
+
+function saveScore(finalScore) {
+  if (!currentUser) return;
+  const all = JSON.parse(localStorage.getItem('flappyLeaderboard') || '[]');
+  all.push({
+    name: currentUser.name,
+    provider: currentUser.provider,
+    score: finalScore,
+    date: new Date().toDateString(),
+    time: Date.now()
+  });
+  // Keep only recent 200
+  if (all.length > 200) all.splice(0, all.length - 200);
+  localStorage.setItem('flappyLeaderboard', JSON.stringify(all));
+  if (finalScore > bestScore) {
+    bestScore = finalScore;
+    localStorage.setItem('flappyBest', bestScore);
+  }
+}
+
+// Drawing
+function drawBackground() {
+  ctx.fillStyle = '#70c5ce';
+  ctx.fillRect(0, 0, W, H);
+  // Simple clouds
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.beginPath(); ctx.arc(80, 60, 20, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(100, 60, 25, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(200, 40, 18, 0, Math.PI*2); ctx.fill();
+}
+
+function drawBird() {
+  ctx.save();
+  ctx.translate(bird.x + bird.w/2, bird.y + bird.h/2);
+  ctx.rotate(bird.rotation);
+  // Body
+  ctx.fillStyle = '#f7d32e';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, bird.w/2, bird.h/2, 0, 0, Math.PI*2);
+  ctx.fill();
+  // Eye
+  ctx.fillStyle = 'white';
+  ctx.beginPath(); ctx.arc(6, -4, 5, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'black';
+  ctx.beginPath(); ctx.arc(8, -4, 2.5, 0, Math.PI*2); ctx.fill();
+  // Beak
+  ctx.fillStyle = '#e74c3c';
+  ctx.beginPath();
+  ctx.moveTo(14, 0);
+  ctx.lineTo(22, -3);
+  ctx.lineTo(22, 3);
+  ctx.closePath();
+  ctx.fill();
+  // Wing
+  ctx.fillStyle = '#f1c40f';
+  ctx.beginPath();
+  ctx.ellipse(-4, 2, 8, 5, Math.sin(Date.now()/100)*0.5, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawPipes() {
+  ctx.fillStyle = '#74c044';
+  ctx.strokeStyle = '#543847';
+  ctx.lineWidth = 2;
+  pipes.forEach(p => {
+    // Top pipe
+    ctx.fillRect(p.x, 0, pipeWidth, p.topHeight);
+    ctx.strokeRect(p.x, 0, pipeWidth, p.topHeight);
+    // Bottom pipe
+    const bottomY = p.topHeight + gap;
+    ctx.fillRect(p.x, bottomY, pipeWidth, H - bottomY - 40);
+    ctx.strokeRect(p.x, bottomY, pipeWidth, H - bottomY - 40);
+  });
+}
+
+function drawGround() {
+  ctx.fillStyle = '#ded895';
+  ctx.fillRect(0, H - 40, W, 40);
+  ctx.fillStyle = '#d2b48c';
+  for (let i = 0; i < 10; i++) {
+    ctx.fillRect(groundX + i * 32, H - 20, 28, 8);
+  }
+}
+
+function drawUI() {
+  ctx.fillStyle = 'white';
+  ctx.strokeStyle = 'black';
+  ctx.lineWidth = 2;
+  ctx.font = 'bold 28px Arial';
+  ctx.textAlign = 'center';
+  if (state === 'start') {
+    ctx.strokeText('点击 / 空格开始', W/2, H/2 - 20);
+    ctx.fillText('点击 / 空格开始', W/2, H/2 - 20);
+    ctx.font = '18px Arial';
+    ctx.strokeText(`最高分: ${bestScore}`, W/2, H/2 + 20);
+    ctx.fillText(`最高分: ${bestScore}`, W/2, H/2 + 20);
+  } else if (state === 'gameover') {
+    ctx.font = 'bold 32px Arial';
+    ctx.strokeText('游戏结束', W/2, H/2 - 40);
+    ctx.fillText('游戏结束', W/2, H/2 - 40);
+    ctx.font = '22px Arial';
+    ctx.strokeText(`分数: ${score}`, W/2, H/2);
+    ctx.fillText(`分数: ${score}`, W/2, H/2);
+    ctx.font = '16px Arial';
+    ctx.strokeText('点击重新开始', W/2, H/2 + 40);
+    ctx.fillText('点击重新开始', W/2, H/2 + 40);
+  }
+  scoreDisplay.textContent = `分数: ${score}`;
+}
+
+function update() {
+  if (state !== 'playing') return;
+
+  // Bird physics
+  bird.velocity += bird.gravity;
+  bird.y += bird.velocity;
+  bird.rotation = Math.min(Math.max(bird.velocity * 3, -30), 90) * Math.PI / 180;
+
+  // Ground collision
+  if (bird.y + bird.h > H - 40 || bird.y < 0) {
+    gameOver();
+    return;
+  }
+
+  // Pipes
+  pipeTimer++;
+  if (pipeTimer > 90) {
+    pipeTimer = 0;
+    const topHeight = 50 + Math.random() * (H - gap - 150);
+    pipes.push({ x: W, topHeight });
+  }
+
+  pipes.forEach((p, i) => {
+    p.x -= 2;
+    // Collision
+    if (bird.x + bird.w > p.x && bird.x < p.x + pipeWidth) {
+      if (bird.y < p.topHeight || bird.y + bird.h > p.topHeight + gap) {
+        gameOver();
+      }
+    }
+    // Score
+    if (!p.scored && p.x + pipeWidth < bird.x) {
+      p.scored = true;
+      score++;
+    }
+    if (p.x + pipeWidth < 0) pipes.splice(i, 1);
+  });
+
+  groundX -= 2;
+  if (groundX <= -32) groundX = 0;
+}
+
+function gameOver() {
+  state = 'gameover';
+  saveScore(score);
+}
+
+function loop() {
+  update();
+  drawBackground();
+  drawPipes();
+  drawGround();
+  drawBird();
+  drawUI();
+  requestAnimationFrame(loop);
+}
+loop();
+
+// Modals
+function closeModal(id) {
+  document.getElementById(id).style.display = 'none';
+}
+function openModal(id) {
+  document.getElementById(id).style.display = 'flex';
+}
+
+document.getElementById('loginBtn').onclick = () => openModal('loginModal');
+document.getElementById('leaderboardBtn').onclick = () => {
+  openModal('leaderboardModal');
+  showLeaderboard('all');
+};
+document.getElementById('shareBtn').onclick = () => {
+  const text = `我在 Flappy Bird 复刻中得了 ${score} 分！快来挑战我吧！`;
+  document.getElementById('shareScoreText').textContent = text;
+  const url = encodeURIComponent(location.href);
+  const encodedText = encodeURIComponent(text);
+  document.getElementById('shareX').href = `https://twitter.com/intent/tweet?text=${encodedText}&url=${url}`;
+  openModal('shareModal');
+};
+
+document.querySelectorAll('.loginBtn').forEach(btn => {
+  btn.onclick = () => {
+    const provider = btn.dataset.provider;
+    const name = prompt(`请输入你的${provider}昵称（演示）:`, '玩家' + Math.floor(Math.random()*1000));
+    if (name) {
+      currentUser = { provider, name };
+      localStorage.setItem('flappyUser', JSON.stringify(currentUser));
+      updateUserUI();
+      closeModal('loginModal');
+    }
+  };
+});
+
+document.getElementById('showAllTime').onclick = () => showLeaderboard('all');
+document.getElementById('showToday').onclick = () => showLeaderboard('today');
+
+function showLeaderboard(type) {
+  const list = getLeaderboard(type);
+  const title = type === 'today' ? '今日榜' : '历史总榜';
+  let html = `<h3>${title}</h3><table><tr><th>#</th><th>玩家</th><th>平台</th><th>分数</th></tr>`;
+  if (list.length === 0) {
+    html += '<tr><td colspan="4">暂无数据</td></tr>';
+  } else {
+    list.forEach((item, i) => {
+      html += `<tr><td>${i+1}</td><td>${item.name}</td><td>${item.provider}</td><td>${item.score}</td></tr>`;
+    });
+  }
+  html += '</table>';
+  document.getElementById('leaderboardContent').innerHTML = html;
+}
+
+// Share functions
+document.getElementById('shareNative').onclick = async () => {
+  const text = document.getElementById('shareScoreText').textContent;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'Flappy Bird', text, url: location.href });
+    } catch (e) {}
+  } else {
+    alert('当前浏览器不支持系统分享，请使用复制链接。');
+  }
+};
+
+document.getElementById('copyLink').onclick = () => {
+  const text = document.getElementById('shareScoreText').textContent + ' ' + location.href;
+  navigator.clipboard.writeText(text).then(() => alert('已复制到剪贴板')).catch(() => alert('复制失败'));
+};
+</script>
+</body>
+</html>
